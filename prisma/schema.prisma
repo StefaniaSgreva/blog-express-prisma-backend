@@ -5,11 +5,65 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(100)
+  slug      String   @unique @db.VarChar(255)
+  image     String?  @db.VarChar(255) // Optional field for image URL/path
+  content   String   @db.Text
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relazione one-to-many con Category (opzionale)
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId Int?
+
+  // Relazione many-to-many con Tag
+  tags Tag[] // array di tag
+
+  // Relazione one-to-many con User
+  author   User? @relation(fields: [authorId], references: [id])
+  authorId Int?
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relazione one-to-many con Post
+  posts Post[]
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(50)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relazione many-to-many con Post
+  posts Post[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  role      String   @default("user")
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Post scritti dall'utente (one-to-many)
+  posts Post[]
 }
