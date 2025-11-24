@@ -21,7 +21,7 @@ model Post {
   content   String   @db.Text
   published Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Relazione one-to-many con Category (opzionale)
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -39,7 +39,7 @@ model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique @db.VarChar(50)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Relazione one-to-many con Post
   posts Post[]
@@ -49,7 +49,7 @@ model Tag {
   id        Int      @id @default(autoincrement())
   name      String   @unique @db.VarChar(50)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Relazione many-to-many con Post
   posts Post[]
@@ -62,8 +62,14 @@ model User {
   role      String   @default("user")
   password  String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Post scritti dall'utente (one-to-many)
   posts Post[]
 }
+
+// Marta Rossi (admin): ideale come creatrice del progetto, autrice di articoli e prime guide (puoi associarla a post su open source, AI, ecc.).
+
+// Luca Verdi (editor): profilo tecnico, scrive sulle tecnologie web (Node/MySQL, Vue, Sviluppo Web).
+
+// Chiara Bianchi (user): appassionata di design/UX, autrice post sulla user experience.
