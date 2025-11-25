@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const NotFoundError = require("../exceptions/NotFoundError");
-
+const fs = require('fs');
 const path = require('path'); // multer imgs
 
 // Creazione automatica dello slug dal titolo fornito lato front end
@@ -13,6 +13,21 @@ function slugify(str) {
     .replace(/\s+/g, '-')    // Sostituisci spazi con -
     .replace(/--+/g, '-')    // Elimina più trattini consecutivi
     .replace(/^-+|-+$/g, ''); // Elimina trattini ad inizio/fine
+}
+
+// Funzione per slug unico 
+async function getUniqueSlug(prisma, baseSlug, excludeId) {
+  let actualSlug = baseSlug;
+  let slugCounter = 1;
+  // Fai attenzione a non generare slug uguali ad altri post già esistenti (escluso quello che stai modificando)
+  while (
+    await prisma.post.findFirst({
+      where: { slug: actualSlug, NOT: { id: excludeId } }
+    })
+  ) {
+    actualSlug = `${baseSlug}-${slugCounter++}`;
+  }
+  return actualSlug;
 }
 
 // Recupera tutti i post (con filtri opzionali: published, search), paginazione, includi categoria e tag
@@ -73,62 +88,74 @@ async function show(req, res, next) {
 
 // Crea un nuovo post
 async function store(req, res, next) {
-  console.log('body', req.body);
-  console.log('file', req.file);
-
   try {
     const data = req.body;
+    let {
+      categoryId,
+      authorId,
+      tagIds,     // dalla form FE: array di stringhe ["1","2"]
+      published,
+      ...rest
+    } = data;
+
+    // Gestione immagine uploadata
     let imageUrl = null;
     let imageName = null;
     let imageExt = null;
-
     if (req.file) {
       imageUrl = '/uploads/' + req.file.filename;
-      imageName = req.file.originalname; // nome originale
-      imageExt = path.extname(req.file.originalname); // estensione, es: .jpg
+      imageName = req.file.originalname;
+      imageExt = path.extname(req.file.originalname);
     }
 
-    // Gestione relazione tags molti-a-molti
-    let tagsArray = [];
-    if (data.tags) {
-      // Supporta array (es: ["1","2"]) o "1" (singolo)
-      tagsArray = Array.isArray(data.tags)
-        ? data.tags
-        : [data.tags];
-    }
+    // Gestione relazione tag molti-a-molti
     let tagsInput = undefined;
-    if (Array.isArray(data.tags) && data.tags.length > 0) {
-      tagsInput = { connect: data.tags.map(id => ({ id })) };
+    if (Array.isArray(tagIds)) {
+      tagsInput = { connect: tagIds.map(id => ({ id: Number(id) })) };
+    } else if (tagIds) {
+      tagsInput = { connect: [{ id: Number(tagIds) }] };
     }
 
-    // ------ AUTENTICAZIONE BACKEND ------
-    // In produzione, ottieni l'authorId dall'utente autenticato:
-    // const authorId = req.user.id;
-    
-    // ------ SVILUPPO FE (senza auth) ------
-    // Passa authorId dal FE oppure usa valore di default
-    const authorId = data.authorId || 1;
+    // Conversione campi particolari
+    // published può arrivare come stringa
+    let normalizedPublished =
+      typeof published === "string"
+        ? published === "true"
+        : Boolean(published);
+
+    // Slug unico
+    const baseSlug = slugify(rest.title);
+    let uniqueSlug = baseSlug;
+    // Cerca collisione slug (evita duplicati)
+    while (await prisma.post.findUnique({ where: { slug: uniqueSlug } })) {
+      uniqueSlug = `${baseSlug}-${Math.floor(Math.random() * 10000)}`;
+    }
+
+    // Prepara oggetto dati per Prisma
+    const newPostData = {
+      ...rest,
+      slug: uniqueSlug,
+      image: imageUrl,
+      imageName,
+      imageExt,
+      published: normalizedPublished,
+      author: authorId
+        ? { connect: { id: Number(authorId) } }
+        : { connect: { id: 1 } }, // default ID autore se mancante
+      ...(categoryId
+        ? { category: { connect: { id: Number(categoryId) } } }
+        : {}),
+      ...(tagsInput && { tags: tagsInput })
+    };
 
     const newPost = await prisma.post.create({
-      data: {
-        title: data.title,
-        // slug: data.slug,
-        slug: slugify(data.title), // Genera lo slug dal titolo
-        content: data.content,
-        image: imageUrl,
-        imageName: imageName,
-        imageExt: imageExt,
-        categoryId: data.categoryId ? Number(data.categoryId) : null,
-        published: typeof data.published === 'boolean' ? data.published : false,
-        authorId,
-        ...(tagsInput && { tags: tagsInput }),
-      },
+      data: newPostData,
       include: { category: true, tags: true }
     });
 
     res.status(201).json(newPost);
   } catch (err) {
-    console.error('ERROR:', err);
+    console.error("ERROR:", err);
     next(err);
   }
 }
@@ -142,26 +169,78 @@ async function update(req, res, next) {
     const post = await prisma.post.findUnique({ where: { slug } });
     if (!post) throw new NotFoundError();
 
-    // Gestione relazione tags molti-a-molti
-    let tagsInput = undefined;
-    if (Array.isArray(incomingData.tags)) {
-      tagsInput = { set: incomingData.tags.map(id => ({ id })) };
-      delete incomingData.tags;
+    // 1. Normalizza i dati in arrivo (togli tutto ciò che Prisma non deve ricevere direttamente)
+    let {
+      categoryId,
+      authorId,
+      tagIds, // Arriva come array o stringa
+      published,
+      ...rest
+    } = incomingData;
+
+    // 2. Gestione dell'immagine (nuova o esistente)
+    let imageUrl = post.image;
+    let imageName = post.imageName;
+    let imageExt = post.imageExt;
+
+    if (req.file) {
+      imageUrl = '/uploads/' + req.file.filename;
+      imageName = req.file.originalname;
+      imageExt = path.extname(req.file.originalname);
+
+      // Rimuovi vecchio file
+      if (post.image) {
+        const oldImagePath = path.join(__dirname, '..', post.image);
+        fs.unlink(oldImagePath, (err) => {
+          if (err) {
+            console.warn('Errore cancellazione vecchia immagine:', err.message);
+          }
+        });
+      }
     }
 
-    // GENERA NUOVO SLUG SE CAMBIA IL TITOLO
-    let newSlug = undefined;
-    if ('title' in incomingData && incomingData.title !== post.title) {
-      newSlug = slugify(incomingData.title);
+    // 3. Gestione relazione tags molti-a-molti
+    let tagsInput;
+    if (Array.isArray(tagIds)) {
+      tagsInput = { set: tagIds.map(id => ({ id: Number(id) })) };
+    } else if (tagIds) {
+      // Potrebbe essere singolo valore stringa
+      tagsInput = { set: [{ id: Number(tagIds) }] };
     }
 
+    // 4. Conversione campi particolari
+    // published
+    let normalizedPublished =
+      typeof published === 'string'
+        ? published === 'true'
+        : Boolean(published);
+
+    // 5. Slug automatico se cambia il titolo
+    let newSlug = post.slug;
+    if ('title' in rest && rest.title !== post.title) {
+      const baseSlug = slugify(rest.title);
+      newSlug = await getUniqueSlug(prisma, baseSlug, post.id);
+    }
+
+    // 6. PREPARA oggetto dati finale
+    const updateData = {
+      ...rest,
+      published: normalizedPublished,
+      slug: newSlug,
+      image: imageUrl,
+      imageName,
+      imageExt,
+      // Relazioni (solo se presenti, così non sovrascrivi se non arriva niente)
+      ...(categoryId
+        ? { category: { connect: { id: Number(categoryId) } } }
+        : { category: { disconnect: true } }),
+      ...(tagsInput && { tags: tagsInput })
+    };
+
+    // 7. Update finale Prisma
     const updatedPost = await prisma.post.update({
       where: { slug },
-      data: {
-        ...incomingData,
-        ...(newSlug && { slug: newSlug }),
-        ...(tagsInput && { tags: tagsInput }),
-      },
+      data: updateData,
       include: { category: true, tags: true }
     });
 

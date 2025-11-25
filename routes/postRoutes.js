@@ -38,10 +38,13 @@ router.get('/:slug', postController.show);
 
 // Crea un nuovo post (DEV): nessun middleware, nessuna validazione
 // router.post('/', postController.store);
+// upload.single('image') permette invio di un nuovo file opzionale
 router.post('/', upload.single('image'), postController.store);
 
 // Aggiorna un post tramite slug (DEV): nessun middleware, nessuna validazione
-router.put('/:slug', postController.update);
+// router.put('/:slug', postController.update);
+// upload.single('image') permette invio di un nuovo file opzionale
+router.put('/:slug', upload.single('image'), postController.update);
 
 // Elimina un post tramite slug (DEV): nessun middleware
 router.delete('/:slug', postController.destroy);
