@@ -1,11 +1,17 @@
 # blog-express-prisma-backend
 
-REST API backend for a modern blog platform built with Express.js and Prisma ORM.  
-Provides endpoints for posts, categories, users, and tags.  
-Designed to be consumed by a Single Page Application (SPA) frontend (see the "blog-vue-vite-frontend" repository for the connected client).  
-Technologies: Node.js, Express.js, Prisma, MySQL.
+> **Robust, scalable, and secure.**
+>
+> This project forms the backend of a modern full-stack blog platform—combining a RESTful API built with Express.js and Prisma ORM with best practices for structure, validation, and security.
+>
+> Every endpoint, middleware, and data model is designed for clarity, maintainability, and seamless integration with the Vue 3 SPA frontend.
+>
+> _Check out both repositories for the complete stack in action._ 🚀
 
+[![Backend – Express/Prisma/MySQL](https://img.shields.io/badge/backend-express%2Fprisma%2Fmysql-green?style=flat-square)]()
+[![Frontend – Vue3/Vite/Tailwind](https://img.shields.io/badge/frontend-vue3%2Fvite-blue?style=flat-square)](https://github.com/StefaniaSgreva/blog-vue-vite-frontend)
 ![No License – Private Portfolio Project](https://img.shields.io/badge/license-unlicensed-blue?style=flat-square)
+...
 
 ## Getting Started
 
@@ -52,36 +58,38 @@ Technologies: Node.js, Express.js, Prisma, MySQL.
 
    The API will be available at http://localhost:3000
 
-## Optional extras
+## Project Structure Preview
 
-- Environment variables: Create a `.env` for secrets/DB connection.
-- `.gitignore`: Make sure `node_modules/` and `.env` are ignored.
-- Seed data: (if present) Run any seed scripts for demo/test data:
-  ```
-  node scripts/seed_admin.js
-  ```
-
-## Usage Modes
-
-- **Frontend Development (with Vue/Vite):**
-
-  - CORS is fully open to allow requests from your local frontend
-  - Authentication and advanced validation are disabled for faster prototyping
-  - API endpoints can be used without tokens
-
-- **Production Backend:**
-
-  - CORS restricted to your official domain(s)
-  - JWT authentication, role checks and validation middleware activated
-  - Data integrity and security enforced on all endpoints
-
-  ## Example `.env`
-
-  ```
-   DATABASE_URL="mysql://user:password@localhost:3306/blogdb"
-   JWT_SECRET=your-very-secret-key
-   PORT=3000
-  ```
+```text
+src/
+  controllers/
+    postController.js
+    categoryController.js
+    tagController.js
+    userController.js
+  routes/
+    postRoutes.js
+    categoryRoutes.js
+    tagRoutes.js
+    authRoutes.js
+  middlewares/
+    errorsHandler.js
+    routeNotFound.js
+    authenticateJWT.js
+    authRoleHandler.js
+    authorizePostOwner.js
+  validations/
+    postCreate.js
+  scripts/
+    seed_admin.js
+  prisma/
+    schema.prisma
+  app.js
+.env
+.gitignore
+package.json
+README.md
+```
 
 ## Core API Endpoints
 
@@ -111,11 +119,37 @@ Technologies: Node.js, Express.js, Prisma, MySQL.
 - Optional authentication and role-based authorization (production mode)
 - Relational data: posts can belong to categories and have multiple tags
 - Pagination, search, and filtering for posts
-- Designed to power a modern SPA frontend
+- Designed to power a modern SPA frontend (see `blog-vue-vite-frontend`)
+
+## Example `.env`
+
+```
+DATABASE_URL="mysql://user:password@localhost:3306/blogdb"
+JWT_SECRET=your-very-secret-key
+PORT=3000
+```
+
+## Usage Modes
+
+- Frontend Development (with Vue/Vite):
+
+      - CORS is fully open to allow requests from your local frontend
+      - Authentication and advanced validation are disabled for faster prototyping
+      - API endpoints can be used without tokens
+
+- Production Backend:
+
+      - CORS restricted to your official domain(s)
+      - JWT authentication, role checks and validation middleware activated
+      - Data integrity and security enforced on all endpoints
 
 ## License
 
 This repository is provided exclusively for portfolio and learning purposes.  
 Please do not use, copy, or redistribute this code or any part of it without explicit permission.
 
-Thank you for respecting my work!
+## Looking for the frontend?
+
+See: [blog-vue-vite-frontend](https://github.com/StefaniaSgreva/blog-vue-vite-frontend)
+
+Thank you for checking out my work!
