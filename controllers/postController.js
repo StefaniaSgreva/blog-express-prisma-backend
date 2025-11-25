@@ -254,14 +254,30 @@ async function update(req, res, next) {
 async function destroy(req, res, next) {
   try {
     const slug = req.params.slug;
+    // 1. Recupera il post da eliminare, inclusi i tag per eventuale pulizia relazione ponte
     const post = await prisma.post.findUnique({
       where: { slug },
       include: { tags: true }
     });
     if (!post) throw new NotFoundError();
 
-    // ------ AUTENTICAZIONE BACKEND ------
-    // In produzione, abilita solo admin/autore:
+    // 2. Disassocia tutti i tag (tabella ponte molti-a-molti)
+    await prisma.post.update({
+      where: { slug },
+      data: { tags: { set: [] } }
+    });
+
+    // 3. Rimuovi l’immagine fisica se esiste
+    if (post.image) {
+      const fs = require('fs');
+      const path = require('path');
+      const oldImagePath = path.join(__dirname, '..', post.image);
+      fs.unlink(oldImagePath, (err) => {
+        if (err) console.warn('Errore cancellazione immagine:', err.message);
+      });
+    }
+
+    // 4. (PRODUZIONE) Autorizzazione: solo admin/autore può cancellare
     // if (
     //   req.user.role !== 'admin' &&
     //   req.user.id !== post.authorId
@@ -269,14 +285,10 @@ async function destroy(req, res, next) {
     //   return res.status(403).json({ error: 'You are not authorized to delete this post' });
     // }
 
-    // Rimuovi relazioni con i tag
-    await prisma.post.update({
-      where: { slug },
-      data: { tags: { set: [] } }
-    });
-
+    // 5. Elimina il post dal database
     await prisma.post.delete({ where: { slug } });
 
+    // 6. Risposta vuota OK
     res.status(204).send();
   } catch (err) {
     next(err);
