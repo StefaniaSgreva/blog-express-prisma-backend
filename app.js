@@ -38,6 +38,8 @@ app.use('/tags', tagRoutes);
 // Permette di testare facilmente dal FE
 app.use('', authRoutes);
 
+app.use('/uploads', express.static('uploads'));
+
 // ===== PRODUZIONE =====
 // Di solito si prefissa con /auth per chiarezza:
 // app.use('/auth', authRoutes);

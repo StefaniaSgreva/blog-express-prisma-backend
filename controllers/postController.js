@@ -2,6 +2,19 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const NotFoundError = require("../exceptions/NotFoundError");
 
+const path = require('path'); // multer imgs
+
+// Creazione automatica dello slug dal titolo fornito lato front end
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[àáäâèéëêìíïîòóöôùúüûç·/_,:;']/g, '') // Rimuovi accenti e caratteri speciali
+    .replace(/\s+/g, '-')    // Sostituisci spazi con -
+    .replace(/--+/g, '-')    // Elimina più trattini consecutivi
+    .replace(/^-+|-+$/g, ''); // Elimina trattini ad inizio/fine
+}
+
 // Recupera tutti i post (con filtri opzionali: published, search), paginazione, includi categoria e tag
 async function index(req, res, next) {
   // Query string: ?published=true&search=foo&page=1&limit=10
@@ -60,10 +73,29 @@ async function show(req, res, next) {
 
 // Crea un nuovo post
 async function store(req, res, next) {
+  console.log('body', req.body);
+  console.log('file', req.file);
+
   try {
     const data = req.body;
+    let imageUrl = null;
+    let imageName = null;
+    let imageExt = null;
+
+    if (req.file) {
+      imageUrl = '/uploads/' + req.file.filename;
+      imageName = req.file.originalname; // nome originale
+      imageExt = path.extname(req.file.originalname); // estensione, es: .jpg
+    }
 
     // Gestione relazione tags molti-a-molti
+    let tagsArray = [];
+    if (data.tags) {
+      // Supporta array (es: ["1","2"]) o "1" (singolo)
+      tagsArray = Array.isArray(data.tags)
+        ? data.tags
+        : [data.tags];
+    }
     let tagsInput = undefined;
     if (Array.isArray(data.tags) && data.tags.length > 0) {
       tagsInput = { connect: data.tags.map(id => ({ id })) };
@@ -80,9 +112,13 @@ async function store(req, res, next) {
     const newPost = await prisma.post.create({
       data: {
         title: data.title,
-        slug: data.slug,
+        // slug: data.slug,
+        slug: slugify(data.title), // Genera lo slug dal titolo
         content: data.content,
-        categoryId: data.categoryId,
+        image: imageUrl,
+        imageName: imageName,
+        imageExt: imageExt,
+        categoryId: data.categoryId ? Number(data.categoryId) : null,
         published: typeof data.published === 'boolean' ? data.published : false,
         authorId,
         ...(tagsInput && { tags: tagsInput }),
@@ -92,6 +128,7 @@ async function store(req, res, next) {
 
     res.status(201).json(newPost);
   } catch (err) {
+    console.error('ERROR:', err);
     next(err);
   }
 }
@@ -105,13 +142,6 @@ async function update(req, res, next) {
     const post = await prisma.post.findUnique({ where: { slug } });
     if (!post) throw new NotFoundError();
 
-    // ------ AUTENTICAZIONE BACKEND ------
-    // In produzione, non permettere di cambiare l'autore:
-    // if ('authorId' in incomingData) delete incomingData.authorId;
-
-    // ------ SVILUPPO FE (senza auth) ------
-    // Puoi permettere il field authorId solo per test
-
     // Gestione relazione tags molti-a-molti
     let tagsInput = undefined;
     if (Array.isArray(incomingData.tags)) {
@@ -119,10 +149,17 @@ async function update(req, res, next) {
       delete incomingData.tags;
     }
 
+    // GENERA NUOVO SLUG SE CAMBIA IL TITOLO
+    let newSlug = undefined;
+    if ('title' in incomingData && incomingData.title !== post.title) {
+      newSlug = slugify(incomingData.title);
+    }
+
     const updatedPost = await prisma.post.update({
       where: { slug },
       data: {
         ...incomingData,
+        ...(newSlug && { slug: newSlug }),
         ...(tagsInput && { tags: tagsInput }),
       },
       include: { category: true, tags: true }

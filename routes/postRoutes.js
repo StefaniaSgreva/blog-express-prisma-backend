@@ -12,6 +12,20 @@ const authenticateJWT = require('../middlewares/authenticateJWT');
 const checkRole = require('../middlewares/authRoleHandler');
 const authorizePostOwner = require('../middlewares/authorizePostOwner');
 
+// multer (upload images)
+const path = require('path');
+const multer = require('multer');
+
+// Configurazione con storage custom per nome + estensione
+const storage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + ext);
+  }
+});
+const upload = multer({ storage });
+
 // ==================================================================
 // DEV MODE (Frontend, Vue/Vite) - SENZA auth e validazione avanzata
 // ==================================================================
@@ -23,7 +37,8 @@ router.get('/', postController.index);
 router.get('/:slug', postController.show);
 
 // Crea un nuovo post (DEV): nessun middleware, nessuna validazione
-router.post('/', postController.store);
+// router.post('/', postController.store);
+router.post('/', upload.single('image'), postController.store);
 
 // Aggiorna un post tramite slug (DEV): nessun middleware, nessuna validazione
 router.put('/:slug', postController.update);

@@ -18,6 +18,8 @@ model Post {
   title     String   @db.VarChar(100)
   slug      String   @unique @db.VarChar(255)
   image     String?  @db.VarChar(255) // Optional field for image URL/path
+  imageName String?  @db.VarChar(255) // nome originale
+  imageExt  String?  @db.VarChar(10) // estensione (es: .jpg)
   content   String   @db.Text
   published Boolean  @default(false)
   createdAt DateTime @default(now())
